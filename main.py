@@ -2,41 +2,35 @@ from tkinter import Tk, Label, Entry, Button, PhotoImage, messagebox, END, Canva
 from threading import Timer
 from data import field
 import os, pygame
-try:
-    from PIL import Image, ImageTk
-    PIL_AVAILABLE = True
-except Exception:
-    # Pillow no disponible: cargaremos imágenes sin redimensionar
-    PIL_AVAILABLE = False
 
 
 class MainEngine(object):
 
     def __init__(self):
 
-        # Inicializar parámetros de ventana de tkinter
+        # initialize tkinter window parameters
         self.root = Tk()
         self.root.title("Pac-Man")
         self.root.geometry("480x640")
         self.root.resizable(0, 0)
 
-        # Inicializar algunas variables del motor
-        self.currentLv = 1              # default: nivel 1
-        self.isLevelGenerated = False   # Comprobar si el nivel (mapa) se ha generado o no
-        self.isPlaying = False          # Comprobar si el juego ha comenzado (en movimiento) o no
-        self.statusStartingTimer = 0    # temporizador de cuenta atrás para la función 'prepararse'
-        self.statusDeadTimer = 0        # temporizador de cuenta atrás para el evento de muerte
-        self.statusFinishTimer = 0      # temporizador de cuenta atrás para el evento de finalización
-        self.statusScore = 0            # puntuación
-        self.statusLife = 2             # vida
-        self.infolebel= ""
-        # Llamar a la siguiente fase de inicialización: carga de recursos
+        # initialize some engine variables
+        self.currentLv = 1              # default: level 1
+        self.isLevelGenerated = False   # check the level (map) is generated or not
+        self.isPlaying = False          # check the game is actually started (moving) or not
+        self.statusStartingTimer = 0    # countdown timer for 'get ready' feature
+        self.statusDeadTimer = 0        # countdown timer for dead event
+        self.statusFinishTimer = 0      # countdown timer for clear event
+        self.statusScore = 0            # score
+        self.statusLife = 2             # life
+
+        # call the next phase of initialization: loading resources
         self.__initResource()
 
 
     def __initResource(self):
-        ## leer los archivos de sprites
-        # Todos los sprites se guardarán en este diccionario
+        ## read the sprite files
+        # all sprites will saved in this dictionary
         self.wSprites = {
             'getready': PhotoImage(file="resource/sprite_get_ready.png"),
             'gameover': PhotoImage(file="resource/sprite_game_over.png"),
@@ -45,9 +39,9 @@ class MainEngine(object):
             'pellet': PhotoImage(file="resource/sprite_pellet.png")
         }
 
-        # enlazar sprites para objetos en movimiento
+        # bind sprites for moving objects
         for i in range(4):
-            # pacman: pacman(dirección)(índice)
+            # pacman: pacman(direction)(index)
             if i == 3:
                 pass
             else:
@@ -67,42 +61,28 @@ class MainEngine(object):
 
         for i in range(11):
             self.wSprites['pacmanDeath{}'.format(i+1)] = PhotoImage(file="resource/sprite_pacman_death{}.png".format(i+1))
-            # Redimensionar los sprites de muerte para que coincidan con el tamaño del pacman
-            try:
-                target_w = self.wSprites['pacmanL1'].width()
-                target_h = self.wSprites['pacmanL1'].height()
-                img = Image.open("resource/sprite_pacman_death{}.png".format(i+1)).convert("RGBA")
-                img = img.resize((target_w, target_h), Image.LANCZOS)
-                self.wSprites['pacmanDeath{}'.format(i+1)] = ImageTk.PhotoImage(img)
-            except Exception:
-                # Si falla, cargar la imagen sin redimensionar como fallback
-                self.wSprites['pacmanDeath{}'.format(i+1)] = PhotoImage(file="resource/sprite_pacman_death{}.png".format(i+1))
-        
-        # DEBUG: mostrar tamaños de las imágenes de Pac‑Man en la consola
-        try:
-            print("Pacman L1 size:", self.wSprites['pacmanL1'].width(), "x", self.wSprites['pacmanL1'].height())
-            print("Pacman R1 size:", self.wSprites['pacmanR1'].width(), "x", self.wSprites['pacmanR1'].height())
-            print("Pacman U1 size:", self.wSprites['pacmanU1'].width(), "x", self.wSprites['pacmanU1'].height())
-            print("Pacman D1 size:", self.wSprites['pacmanD1'].width(), "x", self.wSprites['pacmanD1'].height())
-            # tamaño de las imágenes de muerte (ejemplo con la primera)
-            print("PacmanDeath1 size:", self.wSprites['pacmanDeath1'].width(), "x", self.wSprites['pacmanDeath1'].height())
-        except Exception as e:
-            print("No se pudo leer tamaño de sprites:", e)
- 
-       # Llamar a la siguiente fase de inicialización: generar widgets
+
+
+        self.wSounds = {
+            'chomp1': pygame.mixer.Sound(file="resource/sound_chomp1.wav"),
+            'chomp2': pygame.mixer.Sound(file="resource/sound_chomp2.wav")
+        }
+
+        # call the next phase of initialization: generate widgets
         self.__initWidgets()
 
 
     def __initWidgets(self):
-       # Inicializar widgets para la selección de nivel
+        # initialize widgets for level selection
         self.wLvLabel = Label(self.root, text="¡Selecciona un nivel! (1-5).")
         self.wLvEntry = Entry(self.root)
-        self.wLvBtn = Button(self.root, text="CLICK", command=self.lvSelect, width=5, height=1)
+        self.wLvBtn = Button(self.root, text=" CLICK ", command=self.lvSelect, width=5, height=1)
         self.instLabel = Label(self.root, text="Puedes moverte SOLO con las flechas de tu teclado")
 
-        # Inicializar widgets para el juego
-        self.wGameLabelScore = Label(self.root, text=("Puntuación: " + str(self.statusScore)))
-        self.wGameLabelLife = Label(self.root, text=("Vida: " + str(self.statusLife)))
+
+        # initialize widgets for the game
+        self.wGameLabelScore = Label(self.root, text=("Score: " + str(self.statusScore)))
+        self.wGameLabelLife = Label(self.root, text=("Life: " + str(self.statusLife)))
         self.wGameCanv = Canvas(width=480, height=600)
         self.wGameCanvLabelGetReady = self.wGameCanv.create_image(240,326,image=None)
         self.wGameCanvLabelGameOver = self.wGameCanv.create_image(240,327,image=None)  
@@ -110,7 +90,7 @@ class MainEngine(object):
         self.wGameCanv.config(background="black")
         self.wGameCanvMovingObjects = [self.wGameCanv.create_image(0,0,image=None) for n in range(5)] # 0: pacman, 1-4: ghosts
 
-        # Atajos de teclado para el control del juego
+        # key binds for the game control
         self.root.bind('<Left>', self.inputResponseLeft)
         self.root.bind('<Right>', self.inputResponseRight)
         self.root.bind('<Up>', self.inputResponseUp)
@@ -118,18 +98,18 @@ class MainEngine(object):
         self.root.bind('<Escape>', self.inputResponseEsc)
         self.root.bind('<Return>', self.inputResponseReturn)
 
-        # Llamar a la siguiente fase de inicialización: selección de nivel
+        # call the next phase of initialization: level selection
         self.__initLevelSelect()
 
 
     def __initLevelSelect(self):
-        ## selección de nivel, mostrando todos los widgets relevantes
+        ## level selection, showing all relevant widgets
         self.wLvLabel.pack()
         self.wLvEntry.pack()
         self.wLvBtn.pack()
         self.instLabel.pack()
- 
-        # ejecutar el juego
+
+        # execute the game
         self.root.mainloop()
 
 
@@ -138,37 +118,37 @@ class MainEngine(object):
             self.__initLevelOnce(self.wLvEntry.get())
 
         except ValueError:
-            self.wLvEntry.delete(0, END)  # Borrar el cuadro de texto
+            self.wLvEntry.delete(0, END)  # clear the text box
             messagebox.showinfo("Error!", "Enter a valid level.")
 
         except FileNotFoundError:
-            self.wLvEntry.delete(0, END)  # Borrar el cuadro de texto
+            self.wLvEntry.delete(0, END)  # clear the text box
             messagebox.showinfo("Error!", "Enter a valid level.")
 
 
     def __initLevelOnce(self, level):
-        ## Esta función se llamará solo una vez
+        ## this function will be called only once
 
         self.__initLevel(level)
 
-        # eliminar características de selección de nivel
+        # removing level selection features
         self.wLvLabel.destroy()
         self.wLvEntry.destroy()
         self.wLvBtn.destroy()
-        # colocar el lienzo y establecer isPlaying en True
+        # place the canvas and set isPlaying True
         self.wGameCanv.place(x=0, y=30)
         self.wGameLabelScore.place(x=10, y=5)
         self.wGameLabelLife.place(x=420, y=5)
-        self.wGameLabelScore.place(x=10, y=5)
+
 
 
 
     def __initLevel(self, level):
 
         self.currentLv = int(level)
-        field.gameEngine.levelGenerate(level)   # Generar nivel seleccionado/aprobado
+        field.gameEngine.levelGenerate(level)   # generate selected/passed level
 
-        # Comprobar el nombre del objeto y enlazar el sprite, ajustar sus coordenadas
+        # check the name of the object and bind the sprite, adjust their coordinate
         for j in range(32):
             for i in range(28):
 
@@ -187,13 +167,13 @@ class MainEngine(object):
                     else:
                         pass
 
-        # enlazar el sprite y darle su coordenada actual para pacman
+        # bind the sprite and give it current coord. for pacman
         self.wGameCanv.coords(self.wGameCanvMovingObjects[0], 
                             3+field.gameEngine.movingObjectPacman.coordinateRel[0]*17+8,
                             30+field.gameEngine.movingObjectPacman.coordinateRel[1]*17+8)
         self.wGameCanv.itemconfig(self.wGameCanvMovingObjects[0], image=self.wSprites['pacmanL1'], state='normal')
 
-        # Asigna las coordenadas actuales al sprite para los fantasmas
+        # bind the sprite give them current coord. for ghosts
         for i in range(4):
             if field.gameEngine.movingObjectGhosts[i].isActive == True:
                 self.wGameCanv.coords(self.wGameCanvMovingObjects[i+1],
@@ -202,7 +182,7 @@ class MainEngine(object):
                 self.wGameCanv.itemconfig(self.wGameCanvMovingObjects[i+1], image=self.wSprites['ghost{}L1'.format(i+1)], state='normal')
 
 
-        # ¡Avanza a la siguiente fase: prepárate!
+        # advance to next phase: get ready!
         pygame.mixer.music.stop()
         pygame.mixer.music.load("resource/sound_intro.mp3")
         pygame.mixer.music.play(loops=0, start=0.0)
@@ -237,31 +217,31 @@ class MainEngine(object):
 
 
     def __initLevelStarting(self):
-        self.statusStartingTimer += 1   # Temporizador de cuenta regresiva para esta función
+        self.statusStartingTimer += 1   # countdown timer for this function
 
-       # Enlazar el sprite para el widget
+        # bind the sprite for the widget
         self.wGameCanv.itemconfig(self.wGameCanvLabelGetReady, image=self.wSprites['getready'])
 
         if self.statusStartingTimer < 8:
-            # función de parpadeo
+            # blinking function
             if self.statusStartingTimer % 2 == 1:
                 self.wGameCanv.itemconfigure(self.wGameCanvLabelGetReady, state='normal')
             else:
                 self.wGameCanv.itemconfigure(self.wGameCanvLabelGetReady, state='hidden')
 
-        else:   # Después de 8 iteraciones, el juego principal comenzará con la función loopFunction
+        else:   # after 8 loop, the main game will be started with loopFunction
             self.gameStartingTrigger()
 
 
     def gameStartingTrigger(self):
-        ## Detente para imprimir "prepárate" y comienza el juego
+        ## stop to print out 'get ready' and start the game
         self.timerReady.stop()
         self.wGameCanv.itemconfigure(self.wGameCanvLabelGetReady, state='hidden')
         self.statusStartingTimer = 0
         self.isPlaying = True
         field.gameEngine.movingObjectPacman.dirNext = "Left"
 
-        # sonido de fantasma como música
+        # ghost sound as music
         pygame.mixer.music.stop()
         pygame.mixer.music.load("resource/sound_ghost.ogg")
         pygame.mixer.music.play(-1)
@@ -277,8 +257,8 @@ class MainEngine(object):
         coordGhosts = {}
 
         for i in range(4):
-            coordGhosts['RelG{}'.format(i+1)] = field.gameEngine.movingObjectGhosts[i].coordinateRel    # coordenada relativa de fantasmas
-            coordGhosts['AbsG{}'.format(i+1)] = field.gameEngine.movingObjectGhosts[i].coordinateAbs    # coordenada absoluta de fantasmas
+            coordGhosts['RelG{}'.format(i+1)] = field.gameEngine.movingObjectGhosts[i].coordinateRel    # ghosts relative coordinate
+            coordGhosts['AbsG{}'.format(i+1)] = field.gameEngine.movingObjectGhosts[i].coordinateAbs    # ghosts absolute coordinate
 
         self.spritePacman(field.gameEngine.movingObjectPacman.coordinateRel, field.gameEngine.movingObjectPacman.coordinateAbs)
         self.spriteGhost(coordGhosts)
@@ -288,13 +268,13 @@ class MainEngine(object):
 
 
     def spritePacman(self, coordRelP, coordAbsP):
-        ## Función de sprites de Pac-Man
-        # Esto ajustará las coordenadas del sprite y lo animará, basándose en sus coordenadas absolutas.
+        ## pacman sprite feature
+        # this will adjust the coordinate of the sprite and make them animated, based on their absoluteCoord.
         if field.gameEngine.movingObjectPacman.dirCurrent == "Left":
 
-            # Comprobar los bordes del campo del objeto pasado
+            # check the object passed field edges
             if field.gameEngine.movingObjectPacman.dirEdgePassed == True:
-                self.wGameCanv.move(self.wGameCanvMovingObjects[0], 17*27+17, 0)    # Ten en cuenta que esto moverá el sprite 17*27+17 (no 17*27+12), ya que el sprite se moverá una vez más abajo.
+                self.wGameCanv.move(self.wGameCanvMovingObjects[0], 17*27+17, 0)    # notice this will move the sprite 17*27+17 (not 17*27+12) as the sprite will move once again below
                 field.gameEngine.movingObjectPacman.dirEdgePassed = False
             else:
                 pass
@@ -315,7 +295,7 @@ class MainEngine(object):
 
         elif field.gameEngine.movingObjectPacman.dirCurrent == "Right":
 
-            # Comprobar los bordes del campo del objeto pasado
+            # check the object passed field edges
             if field.gameEngine.movingObjectPacman.dirEdgePassed == True:
                 self.wGameCanv.move(self.wGameCanvMovingObjects[0], -(17*27+17), 0)
                 field.gameEngine.movingObjectPacman.dirEdgePassed = False
@@ -338,7 +318,7 @@ class MainEngine(object):
 
         elif field.gameEngine.movingObjectPacman.dirCurrent == "Up":
 
-            # Comprobar los bordes del campo del objeto pasado
+            # check the object passed field edges
             if field.gameEngine.movingObjectPacman.dirEdgePassed == True:
                 self.wGameCanv.move(self.wGameCanvMovingObjects[0], 0, 17*31+17)
                 field.gameEngine.movingObjectPacman.dirEdgePassed = False
@@ -361,7 +341,7 @@ class MainEngine(object):
 
         elif field.gameEngine.movingObjectPacman.dirCurrent == "Down":
 
-            # Comprobar los bordes del campo del objeto pasado
+            # check the object passed field edges
             if field.gameEngine.movingObjectPacman.dirEdgePassed == True:
                 self.wGameCanv.move(self.wGameCanvMovingObjects[0], 0, -(17*31+17))
                 field.gameEngine.movingObjectPacman.dirEdgePassed = False
@@ -383,13 +363,13 @@ class MainEngine(object):
 
 
     def spriteGhost(self, coordGhosts):
-        ## Función de sprites de fantasmas
-        # Esto ajustará las coordenadas del sprite y lo animará, basándose en sus coordenadas absolutas.
+        ## ghosts sprite feature
+        # this will adjust the coordinate of the sprite and make them animated, based on their absoluteCoord.
         for ghostNo in range(4):
-            if field.gameEngine.movingObjectGhosts[ghostNo].isActive == True:   # Solo se mostrará el fantasma activo
+            if field.gameEngine.movingObjectGhosts[ghostNo].isActive == True:   # only active ghost will be shown
                 if field.gameEngine.movingObjectGhosts[ghostNo].dirCurrent == "Left":
 
-                    # Comprobar los bordes del campo del objeto pasado
+                    # check the object passed field edges
                     if field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed == True:
                         self.wGameCanv.move(self.wGameCanvMovingObjects[ghostNo+1], 17*27+17, 0)
                         field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed = False
@@ -412,7 +392,7 @@ class MainEngine(object):
 
                 elif field.gameEngine.movingObjectGhosts[ghostNo].dirCurrent == "Right":
 
-                    # Comprobar los bordes del campo del objeto pasado
+                    # check the object passed field edges
                     if field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed == True:
                         self.wGameCanv.move(self.wGameCanvMovingObjects[ghostNo+1], -(17*27+17), 0)
                         field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed = False
@@ -432,9 +412,10 @@ class MainEngine(object):
                         self.wGameCanv.itemconfig(self.wGameCanvMovingObjects[ghostNo+1], image=self.wSprites['ghost{}R2'.format(ghostNo+1)])
                         self.wGameCanv.move(self.wGameCanvMovingObjects[ghostNo+1], 5, 0)
 
+
                 elif field.gameEngine.movingObjectGhosts[ghostNo].dirCurrent == "Up":
 
-                    # Comprobar los bordes del campo del objeto pasado
+                    # check the object passed field edges
                     if field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed == True:
                         self.wGameCanv.move(self.wGameCanvMovingObjects[ghostNo+1], 0, 17*31+17)
                         field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed = False
@@ -457,7 +438,7 @@ class MainEngine(object):
 
                 elif field.gameEngine.movingObjectGhosts[ghostNo].dirCurrent == "Down":
 
-                    # Comprobar los bordes del campo del objeto pasado
+                    # check the object passed field edges
                     if field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed == True:
                         self.wGameCanv.move(self.wGameCanvMovingObjects[ghostNo+1], 0, -(17*31+17))
                         field.gameEngine.movingObjectGhosts[ghostNo].dirEdgePassed = False
@@ -477,14 +458,14 @@ class MainEngine(object):
                         self.wGameCanv.itemconfig(self.wGameCanvMovingObjects[ghostNo+1], image=self.wSprites['ghost{}D2'.format(ghostNo+1)])
                         self.wGameCanv.move(self.wGameCanvMovingObjects[ghostNo+1], 0, 5)
             
-            else:   # fantasma inactivo
+            else:   # inactive ghost
                 pass
 
 
     def encounterEvent(self, coordRelP, coordAbsP):
-        ## funciones de encuentro
+        ## encounter features
 
-        encounterMov = field.gameEngine.encounterMoving(coordAbsP[0], coordAbsP[1]) # Llamar a encounterEvent para objetos en movimiento
+        encounterMov = field.gameEngine.encounterMoving(coordAbsP[0], coordAbsP[1]) # call encounterEvent for moving objects
 
         if encounterMov == 'dead':
             self.encounterEventDead()
@@ -494,34 +475,35 @@ class MainEngine(object):
 
         # check the object reaches grid coordinate
         if coordAbsP[0] % 4 == 0 and coordAbsP[1] % 4 == 0:
-            encounterFix = field.gameEngine.encounterFixed(coordRelP[0], coordRelP[1]) # Llamar a la función encounterEvent
+            encounterFix = field.gameEngine.encounterFixed(coordRelP[0], coordRelP[1]) # call encounterEvent function
+
             if encounterFix == "empty":
                 pass
             elif encounterFix == "pellet":
-                if field.gameEngine.levelObjects[coordRelP[0]][coordRelP[1]].isDestroyed == False:  # Comprobar que el perdigón esté vivo
-                    field.gameEngine.levelObjects[coordRelP[0]][coordRelP[1]].isDestroyed = True # destruir el perdigón
-                    self.wGameCanv.itemconfigure(self.wGameCanvObjects[coordRelP[0]][coordRelP[1]], state='hidden') # eliminar del lienzo
+                if field.gameEngine.levelObjects[coordRelP[0]][coordRelP[1]].isDestroyed == False:  # check the pellet is alive
+                    field.gameEngine.levelObjects[coordRelP[0]][coordRelP[1]].isDestroyed = True # destroy the pellet
+                    self.wGameCanv.itemconfigure(self.wGameCanvObjects[coordRelP[0]][coordRelP[1]], state='hidden') # remove from the canvas
 
-                    # reproducir el sonido (wa, ka, wa, ka, ...)
+                    # play the sound (wa, ka, wa, ka, ...)
                     if self.statusScore % 20 == 0:
                         self.wSounds['chomp1'].play(loops=0)
                     else:
                         self.wSounds['chomp2'].play(loops=0)
 
-                    self.statusScore += 10 # ajustar la puntuación
-                    self.wGameLabelScore.configure(text=("Score: " + str(self.statusScore))) # mostrar en el tablero
-                    field.gameEngine.levelPelletRemaining -= 1 # ajustar el número de perdigones restantes
+                    self.statusScore += 10 # adjust the score
+                    self.wGameLabelScore.configure(text=("Score: " + str(self.statusScore))) # showing on the board
+                    field.gameEngine.levelPelletRemaining -= 1 # adjust the remaining pellet numbers
 
                     if field.gameEngine.levelPelletRemaining == 0:
-                        self.encounterEventLevelClear() # nivel claro
+                        self.encounterEventLevelClear() # level clear
                     else:
                         pass
 
 
-                else:   # El punto ya ha sido tomado
+                else:   # the pellet is already taken
                     pass
 
-        else: # pacman no está en la coordenada de la cuadrícula
+        else: # pacman is not on grid coordinate
             pass
 
 
@@ -531,7 +513,7 @@ class MainEngine(object):
         self.timerLoop.stop()
         self.isPlaying = False
 
-        for i in range(5):  # Ocultar el sprite de los objetos en movimiento
+        for i in range(5):  # hide the moving objects' sprite
             self.wGameCanv.itemconfigure(self.wGameCanvMovingObjects[i], state='hidden')
 
         self.timerClear = PerpetualTimer(0.4, self.encounterEventLevelClearLoop)
@@ -539,10 +521,10 @@ class MainEngine(object):
 
 
     def encounterEventLevelClearLoop(self):
-        self.statusFinishTimer += 1  # Temporizador de cuenta regresiva para esta función
+        self.statusFinishTimer += 1   # countdown timer for this function
 
         if self.statusFinishTimer < 9:
-            # Función de parpadeo de pared
+            # wall blinking function
             if self.statusFinishTimer % 2 == 1:
                 self.wSprites.update({'wall': PhotoImage(file="resource/sprite_wall2.png")})                
                 for j in range(32):
@@ -560,7 +542,7 @@ class MainEngine(object):
                         else:
                             pass
 
-        else:   # Después de 11 iteraciones, continuará el proceso de eliminación de nivel
+        else:   # after 11 loop, the level clear process will be continued
             self.encounterEventLevelClearFinish()
 
 
@@ -587,47 +569,47 @@ class MainEngine(object):
 
     def encounterEventDead(self):
 
-        self.statusLife -= 1   # restar la vida restante
+        self.statusLife -= 1    # subtract remaining life
 
         if self.statusLife >= 0:
-            self.wGameLabelLife.configure(text=("Life: " + str(self.statusLife))) # mostrar en el tablero
-        else:   # Evitar mostrar vidas negativas (de todos modos, se acabará la partida)
+            self.wGameLabelLife.configure(text=("Life: " + str(self.statusLife))) # showing on the board
+        else:   # prevent showing minus life (will be game over anyway)
             pass
 
-        # pausa el juego
+        # pause the game
         self.isPlaying = False
         pygame.mixer.music.stop()
         self.timerLoop.stop()
 
-        # Llama al bucle de la muerte
+        # call the death loop
         self.timerDeath = PerpetualTimer(0.10, self.encounterEventDeadLoop)
         self.timerDeath.start()
 
 
     def encounterEventDeadLoop(self):
 
-        self.statusDeadTimer += 1   # temporizador de cuenta regresiva para esta función
+        self.statusDeadTimer += 1   # countdown timer for this function
 
-        if self.statusDeadTimer <= 5:   # esperando un momento
+        if self.statusDeadTimer <= 5:   # waiting for a while
             pass
 
         elif self.statusDeadTimer == 6:
-            # efecto de sonido
+            # sound effect
             pygame.mixer.music.load("resource/sound_death.mp3")
             pygame.mixer.music.play(loops=0, start=0.0)
-            for i in range(4):  # Ocultar el sprite fantasma e inicializar su estado
+            for i in range(4):  # hide the ghost sprite and initialize their status
                 self.wGameCanv.itemconfigure(self.wGameCanvMovingObjects[i+1], state='hidden')
                 field.gameEngine.movingObjectGhosts[i].isActive = False
                 field.gameEngine.movingObjectGhosts[i].isCaged = True
-
-        elif 6 < self.statusDeadTimer <= 17:    # animar el sprite de muerte
+        
+        elif 6 < self.statusDeadTimer <= 17:    # animate the death sprite
             self.wGameCanv.itemconfig(self.wGameCanvMovingObjects[0],
                                         image=self.wSprites['pacmanDeath{}'.format(self.statusDeadTimer-6)])
 
-        elif self.statusDeadTimer == 18:    # parpadeo!
+        elif self.statusDeadTimer == 18:    # blink!
             self.wGameCanv.itemconfigure(self.wGameCanvMovingObjects[0], state='hidden')
 
-        elif 18 < self.statusDeadTimer <= 22:   # esperando un momento
+        elif 18 < self.statusDeadTimer <= 22:   # waiting for a while
             pass
 
         else:
@@ -635,15 +617,15 @@ class MainEngine(object):
 
 
     def encounterEventDeadRestart(self):
-        ## Detén el evento de muerte y reinicia el juego
+        ## stop the death event and restart the game
         if self.statusLife >= 0:
-            self.statusDeadTimer = 0    # Reiniciar el temporizador de cuenta regresiva
-            self.timerDeath.stop()      # Detener el temporizador para el evento de muerte
-            self.isPlaying = False      # Verificar la bandera isPlaying
-            field.gameEngine.levelPelletRemaining = 0   # Reiniciar el conteo de pellets (se volverá a contar en __initLevel)
+            self.statusDeadTimer = 0    # reset the countdown timer
+            self.timerDeath.stop()      # stopping the timer for death event
+            self.isPlaying = False      # isPlaying flag check
+            field.gameEngine.levelPelletRemaining = 0   # Pellet count reset (will be re-counted in __initLevel)
             self.__initLevel(self.currentLv)
         
-        else:   # game over!!
+        else:   # game over
             self.statusDeadTimer = 0
             self.timerDeath.stop()
             self.gameOverTimer = PerpetualTimer(0.55, self.encounterEventDeadGameOver)
@@ -656,13 +638,13 @@ class MainEngine(object):
         self.wGameCanv.itemconfig(self.wGameCanvLabelGameOver, image=self.wSprites['gameover'])
 
         if self.statusDeadTimer < 8:
-            # función de parpadeo
+            # blinking function
             if self.statusDeadTimer % 2 == 1:
                 self.wGameCanv.itemconfigure(self.wGameCanvLabelGameOver, state='normal')
             else:
                 self.wGameCanv.itemconfigure(self.wGameCanvLabelGameOver, state='hidden')
 
-        else:   # Después de 8 iteraciones, el juego ha finalizado por completo.
+        else:   # after 8 loop, the game is completely finished
             self.gameOverTimer.stop()
 
 
@@ -694,7 +676,7 @@ class PerpetualTimer(object):
             self.isRunning = False
 
 
-# Inicializar Pygame para efectos de sonido
+# initialize pygame for sound effects
 pygame.mixer.init(22050, -16, 2, 64)
 pygame.init()
 
